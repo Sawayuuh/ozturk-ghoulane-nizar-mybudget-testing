@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de Budget Personnel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Gestion de Budget Personnel</h1>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-button active" onclick="showTab('transactions')">Transactions</button>
+            <button class="tab-button" onclick="showTab('budgets')">Budgets</button>
+            <button class="tab-button" onclick="showTab('stats')">Statistiques</button>
+        </nav>
+
+        <!-- Onglet Transactions -->
+        <div id="transactions-tab" class="tab-content active">
+            <h2>Gestion des Transactions</h2>
+            
+            <div class="form-section">
+                <h3>Ajouter une transaction</h3>
+                <form id="transaction-form">
+                    <div class="form-group">
+                        <label for="montant">Montant (€)</label>
+                        <input type="number" id="montant" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="libelle">Libellé</label>
+                        <input type="text" id="libelle" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="type">Type</label>
+                        <select id="type" required>
+                            <option value="depense">Dépense</option>
+                            <option value="revenu">Revenu</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="categorie">Catégorie</label>
+                        <input type="text" id="categorie" list="categories" required>
+                        <datalist id="categories">
+                            <option value="alimentation">
+                            <option value="logement">
+                            <option value="transport">
+                            <option value="loisirs">
+                            <option value="sante">
+                            <option value="education">
+                            <option value="salaire">
+                            <option value="autre">
+                        </datalist>
+                    </div>
+                    <div class="form-group">
+                        <label for="date_transaction">Date</label>
+                        <input type="date" id="date_transaction" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Ajouter</button>
+                </form>
+            </div>
+
+            <div class="filters-section">
+                <h3>Filtres</h3>
+                <div class="filters">
+                    <div class="form-group">
+                        <label for="filter-categorie">Catégorie</label>
+                        <input type="text" id="filter-categorie" placeholder="Toutes">
+                    </div>
+                    <div class="form-group">
+                        <label for="filter-date-debut">Date début</label>
+                        <input type="date" id="filter-date-debut">
+                    </div>
+                    <div class="form-group">
+                        <label for="filter-date-fin">Date fin</label>
+                        <input type="date" id="filter-date-fin">
+                    </div>
+                    <button onclick="loadTransactions()" class="btn btn-secondary">Filtrer</button>
+                    <button onclick="clearFilters()" class="btn btn-secondary">Réinitialiser</button>
+                </div>
+            </div>
+
+            <div class="table-section">
+                <h3>Liste des transactions</h3>
+                <div id="transactions-list"></div>
+            </div>
+        </div>
+
+        <!-- Onglet Budgets -->
+        <div id="budgets-tab" class="tab-content">
+            <h2>Gestion des Budgets</h2>
+            
+            <div class="form-section">
+                <h3>Définir un budget</h3>
+                <form id="budget-form">
+                    <div class="form-group">
+                        <label for="budget-categorie">Catégorie</label>
+                        <input type="text" id="budget-categorie" list="categories" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="budget-montant">Montant (€)</label>
+                        <input type="number" id="budget-montant" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="budget-mois">Mois</label>
+                        <select id="budget-mois" required>
+                            <option value="1">Janvier</option>
+                            <option value="2">Février</option>
+                            <option value="3">Mars</option>
+                            <option value="4">Avril</option>
+                            <option value="5">Mai</option>
+                            <option value="6">Juin</option>
+                            <option value="7">Juillet</option>
+                            <option value="8">Août</option>
+                            <option value="9">Septembre</option>
+                            <option value="10">Octobre</option>
+                            <option value="11">Novembre</option>
+                            <option value="12">Décembre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="budget-annee">Année</label>
+                        <input type="number" id="budget-annee" min="2000" max="2100" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Créer le budget</button>
+                </form>
+            </div>
+
+            <div class="table-section">
+                <h3>Liste des budgets</h3>
+                <div id="budgets-list"></div>
+            </div>
+        </div>
+
+        <!-- Onglet Statistiques -->
+        <div id="stats-tab" class="tab-content">
+            <h2>Statistiques des Budgets</h2>
+            
+            <div class="filters-section">
+                <h3>Période</h3>
+                <div class="filters">
+                    <div class="form-group">
+                        <label for="stats-mois">Mois</label>
+                        <select id="stats-mois">
+                            <option value="1">Janvier</option>
+                            <option value="2">Février</option>
+                            <option value="3">Mars</option>
+                            <option value="4">Avril</option>
+                            <option value="5">Mai</option>
+                            <option value="6">Juin</option>
+                            <option value="7">Juillet</option>
+                            <option value="8">Août</option>
+                            <option value="9">Septembre</option>
+                            <option value="10">Octobre</option>
+                            <option value="11">Novembre</option>
+                            <option value="12">Décembre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="stats-annee">Année</label>
+                        <input type="number" id="stats-annee" min="2000" max="2100">
+                    </div>
+                    <button onclick="loadStats()" class="btn btn-primary">Afficher</button>
+                </div>
+            </div>
+
+            <div class="table-section">
+                <div id="stats-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
