@@ -324,3 +324,107 @@ class TestBudgetsAPI:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
+
+    def test_create_transaction_alerte_depassement(self, client):
+        """Alerte lorsque une dépense fait dépasser le budget"""
+        client.post("/api/budgets", json={
+            "categorie": "alimentation",
+            "montant_budget": 300.0,
+            "mois": 1,
+            "annee": 2026
+        })
+        client.post("/api/transactions", json={
+            "montant": 290.0,
+            "libelle": "Courses",
+            "type": "depense",
+            "categorie": "alimentation",
+            "date_transaction": "2026-01-10"
+        })
+        response = client.post("/api/transactions", json={
+            "montant": 20.0,
+            "libelle": "Snack",
+            "type": "depense",
+            "categorie": "alimentation",
+            "date_transaction": "2026-01-15"
+        })
+        assert response.status_code == 201
+        data = response.json()
+        assert data.get("alerte_depassement") is True
+        assert "Dépassement" in (data.get("message_alerte") or "")
+
+    def test_export_transactions_csv(self, client):
+        """Export des transactions en CSV"""
+        client.post("/api/transactions", json={
+            "montant": 25.50,
+            "libelle": "Courses",
+            "type": "depense",
+            "categorie": "alimentation",
+            "date_transaction": "2026-01-06"
+        })
+        response = client.get("/api/transactions/export/csv")
+        assert response.status_code == 200
+        assert "text/csv" in response.headers.get("content-type", "")
+        assert "id,date,libelle,type,categorie,montant" in response.text
+        assert "Courses" in response.text
+
+    def test_update_transaction(self, client):
+        """Modification d'une transaction"""
+        create_resp = client.post("/api/transactions", json={
+            "montant": 25.50,
+            "libelle": "Courses",
+            "type": "depense",
+            "categorie": "alimentation",
+            "date_transaction": "2026-01-06"
+        })
+        tid = create_resp.json()["id"]
+        response = client.put(f"/api/transactions/{tid}", json={
+            "montant": 30.0,
+            "libelle": "Courses modifié",
+            "type": "depense",
+            "categorie": "alimentation",
+            "date_transaction": "2026-01-06"
+        })
+        assert response.status_code == 200
+        assert response.json()["montant"] == 30.0
+        assert response.json()["libelle"] == "Courses modifié"
+
+    def test_get_budget_by_id(self, client):
+        """Récupération d'un budget par ID"""
+        create_resp = client.post("/api/budgets", json={
+            "categorie": "alimentation",
+            "montant_budget": 300.0,
+            "mois": 1,
+            "annee": 2026
+        })
+        bid = create_resp.json()["id"]
+        response = client.get(f"/api/budgets/{bid}")
+        assert response.status_code == 200
+        assert response.json()["categorie"] == "alimentation"
+
+    def test_update_budget(self, client):
+        """Modification d'un budget"""
+        create_resp = client.post("/api/budgets", json={
+            "categorie": "alimentation",
+            "montant_budget": 300.0,
+            "mois": 1,
+            "annee": 2026
+        })
+        bid = create_resp.json()["id"]
+        response = client.put(f"/api/budgets/{bid}", json={
+            "montant_budget": 350.0
+        })
+        assert response.status_code == 200
+        assert response.json()["montant_budget"] == 350.0
+
+    def test_delete_budget(self, client):
+        """Suppression d'un budget"""
+        create_resp = client.post("/api/budgets", json={
+            "categorie": "alimentation",
+            "montant_budget": 300.0,
+            "mois": 1,
+            "annee": 2026
+        })
+        bid = create_resp.json()["id"]
+        response = client.delete(f"/api/budgets/{bid}")
+        assert response.status_code == 204
+        assert client.get(f"/api/budgets/{bid}").status_code == 404

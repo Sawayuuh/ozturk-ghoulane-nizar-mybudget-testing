@@ -142,3 +142,33 @@ class TestObtenirStatistiquesBudget:
         assert stats["budget_fixe"] == 0.0
         assert stats["montant_restant"] == 0.0
         assert stats["pourcentage_consomme"] == 0.0
+
+
+class TestVerifierDepassementBudget:
+    """Tests pour verifier_depassement_budget (alerte dépassement)"""
+    
+    def test_pas_de_depassement(self, db_session, sample_transactions, sample_budgets):
+        """Ajout d'une dépense qui reste sous le budget"""
+        alerte = business_logic.verifier_depassement_budget(
+            db_session, "alimentation", 1, 2026, 50.0
+        )
+        assert alerte["depasse"] is False
+        assert alerte["message_alerte"] is None
+        assert alerte["montant_restant_avant"] == 224.50
+    
+    def test_depassement_budget(self, db_session, sample_transactions, sample_budgets):
+        """Ajout d'une dépense qui fait dépasser le budget (290 + 20 > 300)"""
+        alerte = business_logic.verifier_depassement_budget(
+            db_session, "alimentation", 1, 2026, 250.0
+        )
+        assert alerte["depasse"] is True
+        assert "Dépassement" in (alerte["message_alerte"] or "")
+        assert alerte["budget_fixe"] == 300.0
+    
+    def test_categorie_sans_budget(self, db_session, sample_transactions):
+        """Catégorie sans budget défini -> pas d'alerte"""
+        alerte = business_logic.verifier_depassement_budget(
+            db_session, "loisirs", 1, 2026, 100.0
+        )
+        assert alerte["depasse"] is False
+        assert alerte["message_alerte"] is None
