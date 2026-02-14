@@ -24,6 +24,20 @@ Application web de gestion de budget personnel permettant d'enregistrer ses reve
 - Tests d'intégration pour l'API
 - Validation des données et gestion des erreurs
 
+### Fonctionnalités supplémentaires (Phase 2)
+
+✅ **Alerte de dépassement de budget**
+- Lors de l'ajout d'une dépense, l'utilisateur reçoit une alerte si le budget de la catégorie est dépassé (message détaillé avec montant du dépassement).
+
+✅ **Export des transactions en CSV**
+- Export des transactions (avec filtres optionnels par catégorie et période) en fichier CSV pour archivage ou analyse externe.
+
+✅ **Modification d'une transaction**
+- Mise à jour du montant, libellé, type, catégorie ou date d'une transaction existante (bouton « Modifier » dans la liste).
+
+✅ **Modification et suppression de budgets**
+- Mise à jour du montant d'un budget existant et suppression d'un budget (boutons dans la liste des budgets).
+
 ## 📋 Prérequis
 
 - Python 3.8+
@@ -95,6 +109,16 @@ pytest tests/test_business_logic.py
 pytest tests/test_api.py
 ```
 
+### Lancer les scénarios BDD (Behave)
+
+Les scénarios BDD décrivent le comportement attendu des fonctionnalités du point de vue utilisateur.
+
+```bash
+behave features/
+```
+
+Les fichiers de scénarios sont dans `features/*.feature` (Gherkin en français). Chaque fonctionnalité supplémentaire dispose d’au moins un scénario BDD documenté.
+
 ## 📁 Structure du projet
 
 ```
@@ -111,6 +135,10 @@ pytest tests/test_api.py
 │   ├── conftest.py          # Configuration pytest
 │   ├── test_business_logic.py  # Tests unitaires
 │   └── test_api.py          # Tests d'intégration
+├── features/                # Scénarios BDD (Behave)
+│   ├── *.feature            # Fichiers Gherkin
+│   ├── environment.py       # Config test API pour BDD
+│   └── steps/               # Définitions des steps
 ├── static/
 │   ├── index.html           # Interface web
 │   ├── style.css            # Styles CSS
@@ -123,15 +151,20 @@ pytest tests/test_api.py
 
 ### Transactions
 
-- `POST /api/transactions` - Créer une transaction
+- `POST /api/transactions` - Créer une transaction (réponse avec alerte dépassement si besoin)
 - `GET /api/transactions` - Lister les transactions (filtres: `categorie`, `date_debut`, `date_fin`)
 - `GET /api/transactions/{id}` - Récupérer une transaction
+- `PUT /api/transactions/{id}` - Modifier une transaction
 - `DELETE /api/transactions/{id}` - Supprimer une transaction
+- `GET /api/transactions/export/csv` - Exporter en CSV (filtres optionnels)
 
 ### Budgets
 
 - `POST /api/budgets` - Créer un budget
 - `GET /api/budgets` - Lister les budgets (filtres: `categorie`, `mois`, `annee`)
+- `GET /api/budgets/{id}` - Récupérer un budget par ID
+- `PUT /api/budgets/{id}` - Modifier un budget
+- `DELETE /api/budgets/{id}` - Supprimer un budget
 - `GET /api/budgets/stats/{categorie}` - Statistiques d'un budget (paramètres: `mois`, `annee`)
 - `GET /api/budgets/stats` - Statistiques de tous les budgets (paramètres: `mois`, `annee`)
 
@@ -175,8 +208,14 @@ curl "http://localhost:8000/api/budgets/stats/alimentation?mois=1&annee=2026"
 - **Backend** : FastAPI (Python)
 - **Base de données** : SQLite avec SQLAlchemy ORM
 - **Validation** : Pydantic
-- **Tests** : pytest, pytest-cov
+- **Tests** : pytest, pytest-cov, Behave (BDD)
 - **Frontend** : HTML5, CSS3, JavaScript (vanilla)
+
+## 🏗 Choix techniques et architecture
+
+- **API REST + frontend intégré** : l’application expose une API REST (FastAPI) et sert une interface web (fichiers statiques) depuis le même serveur. La logique métier est isolée dans le module `app.business_logic` (calculs, vérification de dépassement), ce qui permet de tester les règles sans dépendre de l’API.
+- **Tests** : tests unitaires sur la logique métier (pytest), tests d’intégration sur l’API (TestClient FastAPI), et scénarios BDD (Behave) pour décrire le comportement des fonctionnalités supplémentaires. Couverture globale ≥ 80 % (pytest-cov).
+- **Stockage** : SQLite pour la simplicité du déploiement et l’absence de serveur dédié ; les tests utilisent une base en mémoire pour l’isolation.
 
 ## 📝 Notes
 

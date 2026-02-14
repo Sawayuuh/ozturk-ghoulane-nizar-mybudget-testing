@@ -38,7 +38,9 @@ function showTab(tabName) {
     event.target.classList.add('active');
 }
 
-// Transactions
+// Transactions (édition en cours)
+let editingTransactionId = null;
+
 async function handleTransactionSubmit(e) {
     e.preventDefault();
     
@@ -51,23 +53,56 @@ async function handleTransactionSubmit(e) {
     };
     
     try {
-        const response = await fetch(`${API_BASE}/transactions`, {
-            method: 'POST',
+        const url = editingTransactionId
+            ? `${API_BASE}/transactions/${editingTransactionId}`
+            : `${API_BASE}/transactions`;
+        const method = editingTransactionId ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(transaction)
         });
         
         if (response.ok) {
+            const data = await response.json();
+            const wasEditing = !!editingTransactionId;
             document.getElementById('transaction-form').reset();
             document.getElementById('date_transaction').value = new Date().toISOString().split('T')[0];
+            editingTransactionId = null;
+            const btn = document.getElementById('transaction-submit-btn');
+            if (btn) btn.textContent = 'Ajouter';
             loadTransactions();
-            alert('Transaction ajoutée avec succès !');
+            if (wasEditing) {
+                alert('Transaction modifiée avec succès !');
+            } else if (data.alerte_depassement && data.message_alerte) {
+                alert('⚠️ Alerte dépassement de budget\n\n' + data.message_alerte);
+            } else {
+                alert('Transaction ajoutée avec succès !');
+            }
         } else {
             const error = await response.json();
-            alert(`Erreur: ${error.detail || 'Erreur lors de l\'ajout'}`);
+            alert(`Erreur: ${error.detail || 'Erreur lors de l\'enregistrement'}`);
         }
     } catch (error) {
         alert(`Erreur: ${error.message}`);
+    }
+}
+
+async function editTransaction(id) {
+    try {
+        const response = await fetch(`${API_BASE}/transactions/${id}`);
+        if (!response.ok) return;
+        const t = await response.json();
+        document.getElementById('montant').value = t.montant;
+        document.getElementById('libelle').value = t.libelle;
+        document.getElementById('type').value = t.type;
+        document.getElementById('categorie').value = t.categorie;
+        document.getElementById('date_transaction').value = t.date_transaction;
+        editingTransactionId = id;
+        const btn = document.getElementById('transaction-submit-btn');
+        if (btn) btn.textContent = 'Enregistrer la modification';
+    } catch (err) {
+        alert('Erreur: ' + err.message);
     }
 }
 
@@ -121,6 +156,7 @@ function displayTransactions(transactions) {
                         <td>${t.categorie}</td>
                         <td>${t.montant.toFixed(2)} €</td>
                         <td>
+                            <button class="btn btn-secondary" onclick="editTransaction(${t.id})">Modifier</button>
                             <button class="btn btn-danger" onclick="deleteTransaction(${t.id})">Supprimer</button>
                         </td>
                     </tr>
@@ -155,6 +191,19 @@ function clearFilters() {
     document.getElementById('filter-date-debut').value = '';
     document.getElementById('filter-date-fin').value = '';
     loadTransactions();
+}
+
+function exportTransactionsCsv() {
+    const categorie = document.getElementById('filter-categorie').value;
+    const dateDebut = document.getElementById('filter-date-debut').value;
+    const dateFin = document.getElementById('filter-date-fin').value;
+    let url = `${API_BASE}/transactions/export/csv?`;
+    const params = [];
+    if (categorie) params.push(`categorie=${encodeURIComponent(categorie)}`);
+    if (dateDebut) params.push(`date_debut=${dateDebut}`);
+    if (dateFin) params.push(`date_fin=${dateFin}`);
+    url += params.join('&');
+    window.location.href = url;
 }
 
 // Budgets
@@ -218,6 +267,7 @@ function displayBudgets(budgets) {
                     <th>Mois</th>
                     <th>Année</th>
                     <th>Montant</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -227,12 +277,59 @@ function displayBudgets(budgets) {
                         <td>${getMonthName(b.mois)}</td>
                         <td>${b.annee}</td>
                         <td>${b.montant_budget.toFixed(2)} €</td>
+                        <td>
+                            <button class="btn btn-secondary" onclick="editBudget(${b.id})">Modifier</button>
+                            <button class="btn btn-danger" onclick="deleteBudget(${b.id})">Supprimer</button>
+                        </td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
     container.innerHTML = table;
+}
+
+async function editBudget(id) {
+    const montant = prompt('Nouveau montant du budget (€) :');
+    if (montant === null) return;
+    const value = parseFloat(montant);
+    if (isNaN(value) || value <= 0) {
+        alert('Montant invalide.');
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/budgets/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ montant_budget: value })
+        });
+        if (response.ok) {
+            loadBudgets();
+            loadStats();
+            alert('Budget modifié.');
+        } else {
+            const err = await response.json();
+            alert('Erreur: ' + (err.detail || 'Erreur'));
+        }
+    } catch (e) {
+        alert('Erreur: ' + e.message);
+    }
+}
+
+async function deleteBudget(id) {
+    if (!confirm('Supprimer ce budget ?')) return;
+    try {
+        const response = await fetch(`${API_BASE}/budgets/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            loadBudgets();
+            loadStats();
+            alert('Budget supprimé.');
+        } else {
+            alert('Erreur lors de la suppression.');
+        }
+    } catch (e) {
+        alert('Erreur: ' + e.message);
+    }
 }
 
 // Statistiques

@@ -34,6 +34,12 @@ class TransactionResponse(TransactionBase):
         from_attributes = True
 
 
+class TransactionCreateResponse(TransactionResponse):
+    """Réponse à la création d'une transaction, avec alerte dépassement optionnelle."""
+    alerte_depassement: Optional[bool] = None
+    message_alerte: Optional[str] = None
+
+
 class BudgetBase(BaseModel):
     categorie: str = Field(..., min_length=1, description="Catégorie du budget")
     montant_budget: float = Field(..., gt=0, description="Montant du budget (doit être positif)")
@@ -49,6 +55,14 @@ class BudgetBase(BaseModel):
 
 class BudgetCreate(BudgetBase):
     pass
+
+
+class BudgetUpdate(BaseModel):
+    """Schéma pour la mise à jour partielle d'un budget."""
+    categorie: Optional[str] = Field(None, min_length=1)
+    montant_budget: Optional[float] = Field(None, gt=0)
+    mois: Optional[int] = Field(None, ge=1, le=12)
+    annee: Optional[int] = Field(None, ge=2000, le=2100)
 
 
 class BudgetResponse(BudgetBase):

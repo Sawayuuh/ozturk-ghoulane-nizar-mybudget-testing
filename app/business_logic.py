@@ -149,3 +149,55 @@ def obtenir_statistiques_budget(
         "montant_restant": round(montant_restant, 2),
         "pourcentage_consomme": round(pourcentage, 2)
     }
+
+
+def verifier_depassement_budget(
+    db: Session,
+    categorie: str,
+    mois: int,
+    annee: int,
+    montant_ajoute: float
+) -> dict:
+    """
+    Vérifie si l'ajout d'une dépense ferait dépasser le budget de la catégorie.
+    
+    Returns:
+        dict avec depasse (bool), message_alerte (str), montant_restant_avant (float),
+        budget_fixe (float), montant_total_apres (float)
+    """
+    budget = db.query(Budget).filter(
+        Budget.categorie == categorie,
+        Budget.mois == mois,
+        Budget.annee == annee
+    ).first()
+    
+    if not budget:
+        return {
+            "depasse": False,
+            "message_alerte": None,
+            "montant_restant_avant": None,
+            "budget_fixe": None,
+            "montant_total_apres": None
+        }
+    
+    total_actuel = calculer_total_depense_par_categorie(db, categorie, mois, annee)
+    montant_restant_avant = budget.montant_budget - total_actuel
+    montant_total_apres = total_actuel + montant_ajoute
+    depasse = montant_total_apres > budget.montant_budget
+    
+    message_alerte = None
+    if depasse:
+        depassement = round(montant_total_apres - budget.montant_budget, 2)
+        message_alerte = (
+            f"Dépassement du budget {categorie} ({mois:02d}/{annee}) ! "
+            f"Budget: {budget.montant_budget} €, après cette dépense: {montant_total_apres} € "
+            f"(dépassement: {depassement} €)."
+        )
+    
+    return {
+        "depasse": depasse,
+        "message_alerte": message_alerte,
+        "montant_restant_avant": round(montant_restant_avant, 2),
+        "budget_fixe": round(budget.montant_budget, 2),
+        "montant_total_apres": round(montant_total_apres, 2)
+    }

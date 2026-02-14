@@ -58,7 +58,7 @@
                         <label for="date_transaction">Date</label>
                         <input type="date" id="date_transaction" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">Ajouter</button>
+                    <button type="submit" class="btn btn-primary" id="transaction-submit-btn">Ajouter</button>
                 </form>
             </div>
 
@@ -79,6 +79,7 @@
                     </div>
                     <button onclick="loadTransactions()" class="btn btn-secondary">Filtrer</button>
                     <button onclick="clearFilters()" class="btn btn-secondary">Réinitialiser</button>
+                    <button onclick="exportTransactionsCsv()" class="btn btn-secondary">Exporter en CSV</button>
                 </div>
             </div>
 

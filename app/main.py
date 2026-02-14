@@ -1,15 +1,17 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+import io
+import csv
 
 from app.database import get_db, init_db
 from app.models import Transaction, Budget
 from app.schemas import (
-    TransactionCreate, TransactionResponse,
-    BudgetCreate, BudgetResponse, BudgetStatResponse
+    TransactionCreate, TransactionResponse, TransactionCreateResponse,
+    BudgetCreate, BudgetResponse, BudgetStatResponse, BudgetUpdate
 )
 from app import business_logic
 
@@ -32,14 +34,25 @@ async def read_root():
 
 # ========== ENDPOINTS TRANSACTIONS ==========
 
-@app.post("/api/transactions", response_model=TransactionResponse, status_code=201)
+@app.post("/api/transactions", response_model=TransactionCreateResponse, status_code=201)
 def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
-    """Crée une nouvelle transaction"""
-    db_transaction = Transaction(**transaction.dict())
+    """Crée une nouvelle transaction. Retourne une alerte si la dépense dépasse le budget."""
+    alerte = None
+    if transaction.type == "depense":
+        alerte = business_logic.verifier_depassement_budget(
+            db, transaction.categorie,
+            transaction.date_transaction.month, transaction.date_transaction.year,
+            transaction.montant
+        )
+    db_transaction = Transaction(**transaction.model_dump())
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
-    return db_transaction
+    result = TransactionCreateResponse.model_validate(db_transaction)
+    if alerte and alerte["depasse"]:
+        result.alerte_depassement = True
+        result.message_alerte = alerte["message_alerte"]
+    return result
 
 
 @app.get("/api/transactions", response_model=List[TransactionResponse])
@@ -74,6 +87,23 @@ def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
     return transaction
 
 
+@app.put("/api/transactions/{transaction_id}", response_model=TransactionResponse)
+def update_transaction(
+    transaction_id: int,
+    transaction: TransactionCreate,
+    db: Session = Depends(get_db)
+):
+    """Modifie une transaction existante"""
+    db_transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not db_transaction:
+        raise HTTPException(status_code=404, detail="Transaction non trouvée")
+    for key, value in transaction.model_dump().items():
+        setattr(db_transaction, key, value)
+    db.commit()
+    db.refresh(db_transaction)
+    return db_transaction
+
+
 @app.delete("/api/transactions/{transaction_id}", status_code=204)
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     """Supprime une transaction"""
@@ -83,6 +113,37 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     db.delete(transaction)
     db.commit()
     return None
+
+
+@app.get("/api/transactions/export/csv")
+def export_transactions_csv(
+    categorie: Optional[str] = Query(None),
+    date_debut: Optional[date] = Query(None),
+    date_fin: Optional[date] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Exporte les transactions en CSV."""
+    query = db.query(Transaction)
+    if categorie:
+        query = query.filter(Transaction.categorie == categorie)
+    if date_debut:
+        query = query.filter(Transaction.date_transaction >= date_debut)
+    if date_fin:
+        query = query.filter(Transaction.date_transaction <= date_fin)
+    transactions = query.order_by(Transaction.date_transaction.desc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "date", "libelle", "type", "categorie", "montant"])
+    for t in transactions:
+        writer.writerow([
+            t.id, t.date_transaction.isoformat(), t.libelle, t.type, t.categorie, t.montant
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=transactions.csv"}
+    )
 
 
 # ========== ENDPOINTS BUDGETS ==========
@@ -103,7 +164,7 @@ def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
             detail=f"Un budget existe déjà pour la catégorie '{budget.categorie}' en {budget.mois:02d}/{budget.annee}"
         )
     
-    db_budget = Budget(**budget.dict())
+    db_budget = Budget(**budget.model_dump())
     db.add(db_budget)
     db.commit()
     db.refresh(db_budget)
@@ -171,3 +232,53 @@ def list_all_budget_stats(
         stats_list.append(BudgetStatResponse(**stats))
     
     return stats_list
+
+
+@app.get("/api/budgets/{budget_id}", response_model=BudgetResponse)
+def get_budget(budget_id: int, db: Session = Depends(get_db)):
+    """Récupère un budget par son ID"""
+    budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    if not budget:
+        raise HTTPException(status_code=404, detail="Budget non trouvé")
+    return budget
+
+
+@app.put("/api/budgets/{budget_id}", response_model=BudgetResponse)
+def update_budget(
+    budget_id: int,
+    budget_update: BudgetUpdate,
+    db: Session = Depends(get_db)
+):
+    """Modifie un budget existant"""
+    db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    if not db_budget:
+        raise HTTPException(status_code=404, detail="Budget non trouvé")
+    data = budget_update.model_dump(exclude_unset=True)
+    if data:
+        for key, value in data.items():
+            setattr(db_budget, key, value)
+        existing = db.query(Budget).filter(
+            Budget.categorie == db_budget.categorie,
+            Budget.mois == db_budget.mois,
+            Budget.annee == db_budget.annee,
+            Budget.id != budget_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Un budget existe déjà pour la catégorie '{db_budget.categorie}' en {db_budget.mois:02d}/{db_budget.annee}"
+            )
+    db.commit()
+    db.refresh(db_budget)
+    return db_budget
+
+
+@app.delete("/api/budgets/{budget_id}", status_code=204)
+def delete_budget(budget_id: int, db: Session = Depends(get_db)):
+    """Supprime un budget"""
+    budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    if not budget:
+        raise HTTPException(status_code=404, detail="Budget non trouvé")
+    db.delete(budget)
+    db.commit()
+    return None
